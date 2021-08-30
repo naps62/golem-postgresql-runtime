@@ -1,3 +1,5 @@
+mod instance;
+
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -50,7 +52,9 @@ impl Runtime for PGRuntime {
     fn start<'a>(&mut self, ctx: &mut Context<Self>) -> OutputResponse<'a> {
         let conf = ctx.conf.clone();
 
-        log!(ctx, "start");
+        let instance = instance::create();
+
+        log!(ctx, format!("start {:?}", instance));
 
         async move { Ok(Some(serialize::json::json!(conf))) }.boxed_local()
     }
@@ -93,22 +97,6 @@ impl Runtime for PGRuntime {
             Ok(())
         })
     }
-
-    // Simple command handler
-    //
-    // fn run_command<'a>(
-    //     &mut self,
-    //     command: RunProcess,
-    //     _mode: RuntimeMode,
-    //     ctx: &mut Context<Self>,
-    // ) -> ProcessIdResponse<'a> {
-    //     ctx.command(|mut run_ctx| async move {
-    //         run_ctx.stdout(format!("[{:?}] stdout", command)).await;
-    //         Ok(())
-    //     })
-    // }
-
-    // Remaining trait functions have default implementations
 }
 
 #[tokio::main]
