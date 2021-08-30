@@ -1,6 +1,10 @@
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
+
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+
 use ya_runtime_sdk::error::Error;
 use ya_runtime_sdk::*;
 
@@ -18,12 +22,25 @@ pub struct PGConf {
     database: String,
     username: String,
     password: String,
+    logfile: std::path::PathBuf,
 }
 
 #[derive(Default, RuntimeDef)]
 #[cli(PGCli)]
 #[conf(PGConf)]
 pub struct PGRuntime;
+
+macro_rules! log {
+    ($ctx:ident, $str:expr) => {{
+        let mut log_file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open($ctx.conf.logfile.clone())
+            .unwrap();
+
+        writeln!(log_file, "{}", $str).unwrap();
+    }};
+}
 
 impl Runtime for PGRuntime {
     fn deploy<'a>(&mut self, _: &mut Context<Self>) -> OutputResponse<'a> {
@@ -33,10 +50,13 @@ impl Runtime for PGRuntime {
     fn start<'a>(&mut self, ctx: &mut Context<Self>) -> OutputResponse<'a> {
         let conf = ctx.conf.clone();
 
+        log!(ctx, "start");
+
         async move { Ok(Some(serialize::json::json!(conf))) }.boxed_local()
     }
 
-    fn stop<'a>(&mut self, _: &mut Context<Self>) -> EmptyResponse<'a> {
+    fn stop<'a>(&mut self, ctx: &mut Context<Self>) -> EmptyResponse<'a> {
+        log!(ctx, "stop");
         // Gracefully shutdown the service
         async move { Ok(()) }.boxed_local()
     }
@@ -48,6 +68,8 @@ impl Runtime for PGRuntime {
         ctx: &mut Context<Self>,
     ) -> ProcessIdResponse<'a> {
         use std::process::Stdio;
+
+        log!(ctx, format!("command {}", command.bin));
 
         if let RuntimeMode::Command = mode {
             return Error::response("Command mode is not supported");
