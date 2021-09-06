@@ -30,7 +30,10 @@ pub struct PGConf {
 #[derive(Default, RuntimeDef)]
 #[cli(PGCli)]
 #[conf(PGConf)]
-pub struct PGRuntime;
+pub struct PGRuntime {
+    username: String,
+    url: String,
+}
 
 macro_rules! log {
     ($ctx:ident, $str:expr) => {{
@@ -52,15 +55,22 @@ impl Runtime for PGRuntime {
     fn start<'a>(&mut self, ctx: &mut Context<Self>) -> OutputResponse<'a> {
         let conf = ctx.conf.clone();
 
-        let instance = instance::create();
+        let (username, dbname, password) = instance::create();
 
-        log!(ctx, format!("start {:?}", instance));
+        self.username = username;
+        self.url = format!(
+            "psql://{}:{}@{}:{}/{}",
+            self.username, password, conf.host, conf.port, dbname
+        );
+
+        log!(ctx, format!("start {}", self.url));
 
         async move { Ok(Some(serialize::json::json!(conf))) }.boxed_local()
     }
 
     fn stop<'a>(&mut self, ctx: &mut Context<Self>) -> EmptyResponse<'a> {
-        log!(ctx, "stop");
+        instance::destroy(&self.username);
+        log!(ctx, format!("stop {}", self.username));
         // Gracefully shutdown the service
         async move { Ok(()) }.boxed_local()
     }
@@ -73,7 +83,7 @@ impl Runtime for PGRuntime {
     ) -> ProcessIdResponse<'a> {
         use std::process::Stdio;
 
-        log!(ctx, format!("command {}", command.bin));
+        log!(ctx, "command ");
 
         if let RuntimeMode::Command = mode {
             return Error::response("Command mode is not supported");
