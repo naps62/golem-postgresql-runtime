@@ -13,3 +13,6 @@ futures = "0.3"
 serde = { version = "^1.0", features = ["derive"] }
 structopt = "0.3"
 tokio = { version = "0.2", features = ["process", "macros", "time"] }
+postgres = "0.19.1"
+rand = "0.8.4"
+rand_chacha = "0.3.1"

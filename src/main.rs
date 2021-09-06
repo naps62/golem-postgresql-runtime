@@ -1,8 +1,7 @@
+mod config;
 mod instance;
 
 use futures::FutureExt;
-use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -10,30 +9,7 @@ use std::io::prelude::*;
 use ya_runtime_sdk::error::Error;
 use ya_runtime_sdk::*;
 
-#[derive(StructOpt, Debug)]
-#[structopt(rename_all = "kebab-case")]
-pub struct PGCli {
-    #[allow(unused)]
-    path: Option<std::path::PathBuf>,
-}
-
-#[derive(Default, Deserialize, Serialize, Debug, Clone)]
-pub struct PGConf {
-    host: String,
-    port: i32,
-    database: String,
-    username: String,
-    password: String,
-    logfile: std::path::PathBuf,
-}
-
-#[derive(Default, RuntimeDef)]
-#[cli(PGCli)]
-#[conf(PGConf)]
-pub struct PGRuntime {
-    username: String,
-    url: String,
-}
+use config::{PGCli, PGConf};
 
 macro_rules! log {
     ($ctx:ident, $str:expr) => {{
@@ -47,6 +23,13 @@ macro_rules! log {
     }};
 }
 
+#[derive(Default, RuntimeDef)]
+#[cli(PGCli)]
+#[conf(PGConf)]
+pub struct PGRuntime {
+    username: String,
+}
+
 impl Runtime for PGRuntime {
     fn deploy<'a>(&mut self, _: &mut Context<Self>) -> OutputResponse<'a> {
         async move { Ok(None) }.boxed_local()
@@ -55,22 +38,20 @@ impl Runtime for PGRuntime {
     fn start<'a>(&mut self, ctx: &mut Context<Self>) -> OutputResponse<'a> {
         let conf = ctx.conf.clone();
 
-        let (username, dbname, password) = instance::create();
+        let (username, password) = instance::create(&conf);
 
         self.username = username;
-        self.url = format!(
-            "psql://{}:{}@{}:{}/{}",
-            self.username, password, conf.host, conf.port, dbname
-        );
+        let url = conf.db_url_for_user(&self.username, &password, &self.username);
 
-        log!(ctx, format!("start {}", self.url));
+        log!(ctx, format!("start {}", url));
 
         async move { Ok(Some(serialize::json::json!(conf))) }.boxed_local()
     }
 
     fn stop<'a>(&mut self, ctx: &mut Context<Self>) -> EmptyResponse<'a> {
-        instance::destroy(&self.username);
         log!(ctx, format!("stop {}", self.username));
+        instance::destroy(&ctx.conf, &self.username);
+
         // Gracefully shutdown the service
         async move { Ok(()) }.boxed_local()
     }
