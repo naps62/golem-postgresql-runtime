@@ -22,7 +22,10 @@ pub fn create(conf: &PGConf) -> (String, String) {
 
     sql!(client, format!("DROP ROLE IF EXISTS {}", username));
     sql!(client, format!("DROP DATABASE IF EXISTS {}", username));
-    sql!(client, format!("CREATE USER {}", username));
+    sql!(
+        client,
+        format!("CREATE USER {} PASSWORD '{}'", username, password)
+    );
     sql!(client, format!("CREATE DATABASE {}", username));
     sql!(
         client,
@@ -43,5 +46,6 @@ fn gen_random_readable_string<T: Rng + Sized>(rng: &mut T) -> String {
     rng.sample_iter(&Alphanumeric)
         .take(16)
         .map(char::from)
-        .collect()
+        .collect::<String>()
+        .to_lowercase()
 }
